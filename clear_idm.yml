@@ -1,0 +1,28 @@
+---
+- name: Clear host entries from IDM
+  hosts: all
+  gather_facts: no
+  gather_subset: min 
+  become: yes
+  vars_prompt:
+    - name: usrname
+      prompt: What is your IDM user name?
+      private: no
+
+    - name: pswd
+      prompt: What is your IDM password?
+  vars:
+    ipa_server: pdc2idm.example.com
+
+  tasks:
+
+    - name: Remove IDM Entries
+      ipa_host:
+        name: "{{ inventory_hostname }}.example.com"
+        state: absent
+        ipa_host: "{{ ipa_server }}"
+        ipa_user: "{{ usrname }}"
+        ipa_pass: "{{ pswd }}"
+        validate_certs: no
+      delegate_to: localhost
+

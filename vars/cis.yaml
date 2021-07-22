@@ -1,0 +1,76 @@
+---
+# 
+# --------------------------------------------
+# Section 1 Variables - CIS - General Settings
+# --------------------------------------------
+#
+rhel8cis_section1: true
+rhel8cis_allow_autofs: true
+# Rule 1_2_1 Register to RedHat Hosted and disable rhsmd
+rhel8cis_rule_1_2_1: false
+rhel8cis_rule_1_2_5: false
+# Rule 1_4_1 and 1_4_2 enable AIDE which is not an EOD requirement
+rhel8cis_rule_1_4_1: false
+rhel8cis_rule_1_4_2: false
+rhel8cis_selinux_disable: true
+# Rule 1_8_1_2 and 1_8_1_3 install login banners which corporate branding role performs
+rhel8cis_rule_1_8_1_2: true
+rhel8cis_rule_1_8_1_3: true
+rhel8cis_crypto_policy: FUTURE
+rhel8cis_rhnsd_required: true
+rhel8cis_config_aide: false
+# Disable rule 1_10 and 1_11, deals with cryptopolicy that breaks interactions with el6
+rhel8cis_rule_1_10: false
+rhel8cis_rule_1_11: false
+#
+# ---------------------------------------------
+# Section 2 Variables - CIS - Services Settings
+# ---------------------------------------------
+#
+rhel8cis__section2: true
+rhel8cis_time_synchronization: chrony
+rhel8cis_time_synchronization_servers:
+- time1.example.com
+- time2.example.com
+#
+# --------------------------------------------
+# Section 3 Variables - CIS - Network Settings
+# --------------------------------------------
+#
+rhel8cis_section3: true
+rhel8cis_warning_banner: |
+        ###############################################################################
+                                  COMPANY APPROVED USERS ONLY
+         Unauthorized access and/or use is strictly prohibited.  All content contained
+            on this system and its associated sub-systems is the sole and exclusive
+            property of Example Corporation.  Access and use of this system is
+          monitored and may be recorded by the Company.  Company authorized users may
+                  access and use the system for authorized business purposes.
+        ###############################################################################
+
+#
+# ------------------------------------------------
+# Section 4 Variables - CIS - Logging and Auditing
+# ------------------------------------------------
+#
+rhel8cis_section4: true
+rhel8cis_rule_4_1_1_3: false
+rhel8cis_rule_4_1_1_4: false
+rhel8cis_remote_log_server: 10.255.255.13
+
+#
+# --------------------------------------------------------------------
+# Section 5 Variables - CIS - Access, Authentication and Authorization
+# --------------------------------------------------------------------
+#
+rhel8cis_section5: true
+rhel8cis_rule_5_5_2: false
+rhel8cis_authselect_custom_profile_create: false
+rhel8cis_authselect_custom_profile_select: false
+
+#
+# ----------------------------------------------
+# Section 6 Variables - CIS - System Maintenance
+# ----------------------------------------------
+#
+rhel8cis_section6: true

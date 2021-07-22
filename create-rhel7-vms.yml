@@ -1,0 +1,200 @@
+---
+- name: Create new VMs - Get AD credentials for DDI
+  hosts: all
+  gather_facts: false
+  pre_tasks:
+    - pause:
+        prompt: "Enter your AD username:"
+      register: prompt
+      no_log: yes
+      run_once: yes
+    - set_fact:
+        ad_user: "{{prompt.user_input}}"
+      no_log: yes
+      run_once: yes
+    - pause:
+        prompt: "Enter your AD password:"
+        echo: no
+      register: prompt
+      no_log: yes
+      run_once: yes
+    - set_fact:
+        ad_pswd: "{{prompt.user_input}}"
+
+- name: Classify Hosts into Tiers
+  hosts: all
+  gather_facts: false
+
+  tasks:
+ 
+    - group_by: key=dev
+      when: "'d' in inventory_hostname | regex_search('^(.)')"
+
+    - group_by: key=qa
+      when: "'q' in inventory_hostname | regex_search('^(.)')"
+
+    - group_by: key=preprod
+      when: "'s' in inventory_hostname | regex_search('^(.)')"
+
+    - group_by: key=prod
+      when: "'p' in inventory_hostname | regex_search('^(.)')"
+
+
+- name: Classify Hosts into Datacentres
+  hosts: all
+  gather_facts: false
+
+  tasks:
+
+    - group_by: key=dc1_hosts
+      when: "'dc1' in inventory_hostname | regex_search('^....(..)')"
+
+    - group_by: key=dc2_hosts 
+      when: "'dc2' in inventory_hostname | regex_search('^....(..)')"
+
+- name: Obtain IP Addresses and Set DNS Records
+  hosts: dc1_hosts:dc2_hosts
+  gather_facts: false
+  serial: 1
+  vars:
+    nios_provider:
+      host: ddi.example.com
+      username: "{{ ad_user }}"
+      password: "{{ ad_pswd }}"
+
+  tasks:
+
+  - name: lookup next IP for this host
+    set_fact:
+      vm_ip_ddi: "{{ lookup('nios_next_ip', '{{ bld_net }}', provider=nios_provider)[0] }}"
+    delegate_to: localhost
+
+  - name: Set variable for DNS lookup
+    set_fact:
+      fqdn: "{{ inventory_hostname }}.example.com }}"
+
+  - name: Check to see if this DNS record already exists
+    set_fact:
+      dns_lookup: "{{ lookup('dig', fqdn) }}"
+    delegate_to: localhost
+    failed_when: dns_lookup != "NXDOMAIN"
+
+  - name: Set DNS Record
+    nios_host_record:
+      name: "{{ inventory_hostname }}.example.com"
+      ipv4:
+        - address: "{{ vm_ip_ddi }}"
+      state: present
+      provider: "{{ nios_provider }}"
+      view: Internal
+    delegate_to: localhost
+
+- name: Create VMs and Power then on for Build
+  hosts: dc1_hosts:dc2_hosts
+  gather_facts: no
+  serial: 3
+  collections:
+    - theforeman.foreman
+  gather_facts: false
+  vars:
+    nios_provider:
+      host: ddi.example.com
+      username: "{{ ad_user }}"
+      password: "{{ ad_pswd }}"
+    compute_pro: 1-Small_RHEL7
+  vars_files:
+    - vaults/satellite_vault.yaml
+
+  tasks:
+
+  - name: VM Creation
+    theforeman.foreman.host:
+      username: "{{ foreman_username }}"
+      password: "{{ foreman_password }}"
+      server_url: "https://pdc2rhns.example.com/"
+      validate_certs: no
+      name: "{{ inventory_hostname }}.example.com"
+      domain: example.com
+      compute_profile: "{{ compute_pro }}"
+      compute_resource: "{{ compute_res }}"
+      hostgroup: "{{ hostgrp7 }}"
+      ip: "{{ vm_ip_ddi }}"
+      subnet: "{{ satbld_vlan }}"
+      organization: "Example Corporation"
+      location: "{{ place }}"
+      state: present
+      build: yes
+      ptable: Kickstart
+      operatingsystem: RHEL Server 7.9
+      root_pass: apassword
+    delegate_to: localhost
+
+  - name: Find Guest's Folder using name
+    vmware_guest_find:
+      hostname: "{{ vm_server }}"
+      username: "{{ ad_user }}@example.com"
+      password: "{{ ad_pswd }}"
+      validate_certs: no
+      name: "{{ inventory_hostname }}"
+    delegate_to: localhost
+    register: vm_folder
+
+  - name: Set datacentre fact
+    set_fact:
+      datacentre: "{{ vm_folder.folders[0].split(separator)[1] }}"
+
+  - name: Find VM's MAC Address
+    vmware_guest_info:
+      hostname: "{{ vm_server }}"
+      username: "{{ ad_user }}@example.com"
+      password: "{{ ad_pswd }}"
+      validate_certs: no
+      datacenter: datacentre
+      name: "{{ inventory_hostname }}"
+    delegate_to: localhost
+    register: vm_info
+
+  - name: Set MAC Fact
+    set_fact:
+      vm_mac: "{{ vm_info.instance.hw_eth0.macaddress }}"
+ 
+  - name: Set VM Folder Fact
+    set_fact:
+      vm_folder1: "{{ vm_info.instance.hw_folder }}"
+
+  - name: configure ipv4 dhcp fixed address
+    nios_fixed_address:
+      name: "{{ inventory_hostname }}.example.com"
+      ipaddr: "{{ vm_ip_ddi }}"
+      mac: "{{ vm_mac }}"
+      network: "{{ bld_net }}"
+      network_view: default
+      state: present
+      provider: "{{ nios_provider }}"
+    connection: local
+
+  - name: Start VM for Build
+    vmware_guest_powerstate:
+      hostname: "{{ vm_server }}"
+      username: "{{ ad_user }}@example.com"
+      password: "{{ ad_pswd }}"
+      validate_certs: no
+      folder: "{{ vm_folder1 }}"
+      name: "{{ inventory_hostname }}"
+      state: powered-on
+    connection: local
+
+  - name: Pause for reflection and to allow new hosts to boot
+    pause:
+      seconds: 30
+
+  - name: Remove ipv4 dhcp fixed address
+    nios_fixed_address:
+      name: "{{ inventory_hostname }}.example.com"
+      ipaddr: "{{ vm_ip_ddi }}"
+      mac: "{{ vm_mac }}"
+      network: "{{ bld_net }}"
+      network_view: default
+      state: absent
+      provider: "{{ nios_provider }}"
+    connection: local

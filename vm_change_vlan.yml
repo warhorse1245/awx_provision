@@ -1,0 +1,194 @@
+---
+- name: Obtain new IP address and change configuration files
+  hosts: all
+  gather_facts: no
+  become: yes
+  pre_tasks:
+    - pause:
+        prompt: "Enter your AD username:"
+      register: prompt
+      no_log: yes
+      run_once: yes
+    - set_fact:
+        ad_user: "{{prompt.user_input}}"
+      no_log: yes
+      run_once: yes
+    - pause:
+        prompt: "Enter your AD password:"
+        echo: no
+      register: prompt
+      no_log: yes
+      run_once: yes
+    - set_fact:
+        ad_pswd: "{{prompt.user_input}}"
+
+- name: Classify Hosts into Datacentre
+  hosts: all
+  gather_facts: no
+
+  tasks:
+
+    - group_by: key=dc1_hosts
+      when: "'dc1' in inventory_hostname | regex_search('^....(..)')"
+
+    - group_by: key=dc2_hosts 
+      when: "'dc2' in inventory_hostname | regex_search('^....(..)')"
+
+- name: Obtain IP Addresses
+  hosts: dc1_hosts:dc2_hosts
+  gather_facts: yes
+  become: yes
+  serial: 1
+  vars:
+    nios_provider:
+      host: ddi.example.com
+      username: "{{ ad_user }}"
+      password: "{{ ad_pswd }}"
+
+  tasks:
+
+  - name: lookup next IP for this host
+    set_fact:
+      vm_ip_ddi: "{{ lookup('nios_next_ip', '{{ dest_net }}', provider=nios_provider)[0] }}"
+    delegate_to: localhost
+
+  - name: Update hosts file
+    lineinfile:
+      path: /etc/hosts
+      backup: yes
+      regexp: "{{ ansible_hostname }}"
+      line: "{{ vm_ip_ddi }}        {{ ansible_fqdn }} {{ ansible_hostname }}"
+
+  - name: Update address
+    lineinfile:
+      path: "/etc/sysconfig/network-scripts/ifcfg-{{ ansible_default_ipv4.interface }}"
+      regexp: "^IPADDR"
+      line: "IPADDR={{ vm_ip_ddi }}"
+      backup: yes
+
+  - name: Update gateway
+    lineinfile:
+      path: "/etc/sysconfig/network-scripts/ifcfg-{{ ansible_default_ipv4.interface }}"
+      regexp: "^GATEWAY="
+      line: "GATEWAY={{ dest_gw }}"
+
+  - name: Remove HWADDR from Interface
+    lineinfile:
+      path: "/etc/sysconfig/network-scripts/ifcfg-{{ ansible_default_ipv4.interface }}"
+      regexp: HWADDR=
+      state: absent
+
+  - name: Shutdown host for NIC shenanigans
+    command: shutdown now
+    ignore_errors: yes
+    
+- name: Change VMWare VLAN
+  hosts: dc1_hosts:dc2_hosts
+  gather_facts: no
+  become: yes
+
+  tasks:
+
+  - name: Find Guest's Folder using name
+    vmware_guest_find:
+      hostname: "{{ vm_server }}"
+      username: "{{ ad_user }}@example.com"
+      password: "{{ ad_pswd }}"
+      validate_certs: no
+      name: "{{ inventory_hostname }}"
+    delegate_to: localhost
+    register: vm_folder
+
+  - name: Set datacentre fact
+    set_fact:
+      datacentre: "{{ vm_folder.folders[0].split(separator)[1] }}"
+
+  - name: Gather VM Info
+    vmware_guest_info:
+      hostname: "{{ vm_server }}"
+      username: "{{ ad_user }}@example.com"
+      password: "{{ ad_pswd }}"
+      validate_certs: no
+      datacenter: datacentre
+      name: "{{ inventory_hostname }}"
+    delegate_to: localhost
+    register: vm_info
+
+  - name: Remove existing NIC in Build Network
+    vmware_guest_network:
+      hostname: "{{ vm_server }}"
+      username: "{{ ad_user }}@example.com"
+      password: "{{ ad_pswd }}"
+      datacenter: datacentre
+      validate_certs: no
+      name: "{{ inventory_hostname }}"
+      gather_network_info: false
+      networks:
+        - device_type: vmxnet3
+          name: "{{ bld_vlan }}"
+          connected: false
+          state: absent  
+    delegate_to: localhost
+
+  - name: Add new NIC in {{ dest_vlan }}
+    vmware_guest_network:
+      hostname: "{{ vm_server }}"
+      username: "{{ ad_user }}@example.com"
+      password: "{{ ad_pswd }}"
+      datacenter: datacentre
+      validate_certs: no
+      name: "{{ inventory_hostname }}"
+      gather_network_info: false
+      networks:
+        - device_type: vmxnet3
+          name: "{{ dest_vlan }}"
+          connected: true
+          state: new
+          start_connected: true
+    delegate_to: localhost
+
+  - name: Set VM Folder Fact
+    set_fact:
+      vm_folder1: "{{ vm_info.instance.hw_folder }}"
+
+  - name: Start VM
+    vmware_guest_powerstate:
+      hostname: "{{ vm_server }}"
+      username: "{{ ad_user }}@example.com"
+      password: "{{ ad_pswd }}"
+      folder: "{{ vm_folder1 }}"
+      validate_certs: no
+      name: "{{ inventory_hostname }}"
+      state: powered-on
+    connection: local
+
+- name: Change DNS to reflect new IP Address
+  hosts: dc1_hosts:dc2_hosts
+  gather_facts: no
+  serial: 1
+  vars:
+    nios_provider:
+      host: ddi.example.com
+      username: "{{ ad_user }}"
+      password: "{{ ad_pswd }}"
+
+  tasks:
+      
+  - name: Remove old DNS Record
+    nios_host_record:
+      name: "{{ inventory_hostname }}.example.com"
+      state: absent
+      provider: "{{ nios_provider }}"
+      view: Internal
+    delegate_to: localhost
+
+  - name: Create new DNS Record
+    nios_host_record:
+      name: "{{ inventory_hostname }}.example.com"
+      ipv4:
+        - address: "{{ vm_ip_ddi }}"
+      state: present
+      provider: "{{ nios_provider }}"
+      ttl: 30
+      view: Internal
+    delegate_to: localhost

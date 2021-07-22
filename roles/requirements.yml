@@ -1,0 +1,8 @@
+---
+roles:
+  - name: RHEL8-CIS
+    src: git+https://github.com/ansible-lockdown/RHEL8-CIS.git
+
+  - name: RHEL7-CIS
+    src: git+https://github.com/ansible-lockdown/RHEL7-CIS.git
+

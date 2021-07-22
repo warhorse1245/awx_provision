@@ -1,0 +1,21 @@
+---
+- name: Clear host entries from IDM
+  hosts: all
+  gather_facts: no
+  gather_subset: min 
+  become: yes
+  vars_files:
+    - vaults/satellite_vault.yaml
+
+  tasks:
+
+    - name: Remove Satellite Entries
+      theforeman.foreman.host:
+        username: "{{ foreman_username }}"
+        password: "{{ foreman_password }}"
+        server_url: "https://pdc2rhns.example.com/"
+        validate_certs: no
+        name: "{{ inventory_hostname }}.example.com"
+        domain: example.com
+        state: absent
+      delegate_to: localhost

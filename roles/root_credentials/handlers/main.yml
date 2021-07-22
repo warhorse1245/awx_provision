@@ -1,0 +1,6 @@
+---
+# handlers file for root_credentials
+  - name: restart ssh
+    service:
+      name: sshd
+      state: restarted

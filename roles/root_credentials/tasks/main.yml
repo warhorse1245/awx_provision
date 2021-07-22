@@ -1,0 +1,23 @@
+---
+# tasks file for root_credentials
+#
+  - name: Set root password
+    user:
+      name: root
+      password: "{{ root_password }}"
+      generate_ssh_key: yes
+      ssh_key_type: rsa
+      ssh_key_bits: 4096
+      ssh_key_file: .ssh/id_rsa
+      force: no
+
+  - name: Disable Root Login
+    lineinfile:
+      dest: /etc/ssh/sshd_config
+      regexp: '^PermitRootLogin yes'
+      line: "PermitRootLogin no"
+      state: present
+      backup: yes
+    notify:
+      restart ssh
+

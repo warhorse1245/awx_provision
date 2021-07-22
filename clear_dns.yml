@@ -1,0 +1,29 @@
+---
+- name: Delete DNS Entries
+  hosts: all
+  gather_facts: no
+  become: yes
+  vars_prompt:
+    - name: usrname
+      prompt: What is your Active Directory user name?
+      private: no
+
+    - name: pswd
+      prompt: What is your Active Directory password?
+
+  vars:
+    nios_provider:
+      host: ddi.example.com
+      username: "{{ usrname }}"
+      password: "{{ pswd }}"
+
+  tasks:
+
+  - name: Remove DDI Entry
+    nios_host_record:
+      name: "{{ inventory_hostname }}.example.com"
+      state: absent
+      provider: "{{ nios_provider }}"
+      view: Internal
+    delegate_to: localhost
+

@@ -1,0 +1,45 @@
+---
+  - name: Apply post-deployment configuration
+    hosts: all
+    become: true
+    gather_facts: true
+
+    vars_files:
+      - vaults/root_vault.yaml
+      - vaults/admin_vault.yaml
+      - vars/cis7.yaml
+      - vars/cis.yaml
+
+    roles:
+      - root_credentials
+      - bindmounts
+
+    tasks:
+
+      - name: Include CIS RHEL7 Role when Appropriate
+        include_role:
+          name: RHEL7-CIS
+        when: ansible_distribution_release == "Maipo"
+
+      - name: Include CIS RHEL8 Role when Appropriate
+        include_role:
+          name: RHEL8-CIS
+        when: ansible_distribution_release == "Ootpa"
+
+      - name: Remove domain from username
+        blockinfile:
+          path: /etc/sssd/sssd.conf
+          block: |
+            full_name_format = %1$s
+            subdomains_provider = ipa
+          insertafter: '^ldap_tls_cacert'
+          state: present
+          backup: yes
+        notify: restart sssd
+
+    handlers:
+
+      - name: restart sssd
+        service:
+          name: sssd
+          state: restarted

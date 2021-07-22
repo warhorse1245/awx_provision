@@ -1,0 +1,11 @@
+---
+bld_net: 10.127.26.0/23
+satbld_vlan: VLAN3227
+bld_vlan: 3227_Prod_Linux
+dest_net: 10.127.54.0/23
+dest_vlan: 3255_NPrd_Linux
+dest_gw: 10.127.54.1
+compute_res: pdc1vcsa
+vm_server: pdc1vcsa.example.com
+place: DC1
+separator: '/'

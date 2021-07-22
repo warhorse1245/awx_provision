@@ -1,0 +1,9 @@
+---
+# tasks file for remote_mounts
+  - name: Display facts
+    debug:
+      msg: "{{ item.device }} {{ item.mount }} {{ item.options }}" 
+    with_items: "{{ ansible_facts['mounts'] }}"
+    when: 
+      - "item.fstype.startswith('nfs')"
+    

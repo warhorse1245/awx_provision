@@ -1,0 +1,11 @@
+---
+bld_net: 10.18.26.0/23
+satbld_vlan: VLAN3226
+bld_vlan: 3226_Prod_Linux_WebApp
+dest_net: 10.18.54.0/23
+dest_vlan: 3254_NPrd_Linux_WebApp
+dest_gw: 10.18.54.1
+compute_res: pdc2vcsa
+vm_server: pdc2vcsa.example.com
+place: DC2
+separator: '/'

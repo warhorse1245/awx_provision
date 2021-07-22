@@ -1,0 +1,13 @@
+---
+# tasks file for bindmounts
+  - name: Ensure /tmp is a bind mount
+    mount:
+      src: /tmp
+      path: /var/tmp
+      fstype: none
+      opts: rw,bind
+      passno: "0"
+      dump: "0"
+      boot: yes
+      state: mounted
+      
