@@ -20,7 +20,7 @@ group_vars/dc2_hosts.yml - contains a number of build parameters for hosts in DC
 
 # Playbook usage:
 
-1. create-vms.yml - ansible-playbook -i <inventory> create-vms.yml --ask-vault-pass
+1. create-rhel[7/8]-vms.yml - ansible-playbook -i <inventory> create-vms.yml --ask-vault-pass
 	- the inventory file will contain the new hosts you'd like built
 	- this playbook will prompt you for your AD username and password to interface with both VMWare and DDI
 	- also requires the vault password for the satellite creds
